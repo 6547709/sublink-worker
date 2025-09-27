@@ -1,13 +1,25 @@
 import { t } from './i18n';
 
+// ACL4SSR 规则配置
+export const ACL4SSR_RULES = {
+	'acl4ssr_online': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini',
+	'acl4ssr_online_full': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini',
+	'acl4ssr_online_full_google': 'https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_XQ.ini',
+	'acl4ssr_online_mini': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini',
+	'acl4ssr_online_nodirect': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini',
+	'acl4ssr_online_adblock': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini',
+};
+
 export const SITE_RULE_SET_BASE_URL = 'https://gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/refs/heads/rule-set-geosite/';
 export const IP_RULE_SET_BASE_URL = 'https://gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/refs/heads/rule-set-geoip/';
 export const CLASH_SITE_RULE_SET_BASE_URL = 'https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/';
 export const CLASH_IP_RULE_SET_BASE_URL = 'https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/';
 export const SURGE_SITE_RULE_SET_BASEURL = 'https://gh-proxy.com/https://github.com/NSZA156/surge-geox-rules/raw/refs/heads/release/geo/geosite/'
 export const SURGE_IP_RULE_SET_BASEURL = 'https://gh-proxy.com/https://github.com/NSZA156/surge-geox-rules/raw/refs/heads/release/geo/geoip/'
+
 // Custom rules
 export const CUSTOM_RULES = [];
+
 // Unified rule structure
 export const UNIFIED_RULES = [
 	{
@@ -123,11 +135,15 @@ export const UNIFIED_RULES = [
 export const PREDEFINED_RULE_SETS = {
 	minimal: ['Location:CN', 'Private', 'Non-China'],
 	balanced: ['Location:CN', 'Private', 'Non-China','Github', 'Google', 'Youtube', 'AI Services', 'Telegram'],
-	comprehensive: UNIFIED_RULES.map(rule => rule.name)
-  };
-  
+	comprehensive: UNIFIED_RULES.map(rule => rule.name),
+	// 添加 ACL4SSR 规则集
+	acl4ssr_online: 'acl4ssr_online',
+	acl4ssr_online_full: 'acl4ssr_online_full',
+	acl4ssr_online_full_google: 'acl4ssr_online_full_google',
+	acl4ssr_online_mini: 'acl4ssr_online_mini',
+};
 
-
+// 其余代码保持不变...
 // Generate SITE_RULE_SETS and IP_RULE_SETS from UNIFIED_RULES
 export const SITE_RULE_SETS = UNIFIED_RULES.reduce((acc, rule) => {
 	rule.site_rules.forEach(site_rule => {
