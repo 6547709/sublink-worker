@@ -3,7 +3,7 @@ import { generateHtml } from './htmlBuilder.js';
 import { ClashConfigBuilder } from './ClashConfigBuilder.js';
 import { SurgeConfigBuilder } from './SurgeConfigBuilder.js';
 import { decodeBase64, encodeBase64, GenerateWebPath } from './utils.js';
-import { PREDEFINED_RULE_SETS } from './config.js';
+import { PREDEFINED_RULE_SETS, ACL4SSR_RULES } from './config.js';
 import { t, setLanguage } from './i18n/index.js';
 import yaml from 'js-yaml';
 
@@ -16,18 +16,21 @@ async function handleRequest(request) {
     const url = new URL(request.url);
     const lang = url.searchParams.get('lang');
     setLanguage(lang || request.headers.get('accept-language')?.split(',')[0]);
+    
     if (request.method === 'GET' && url.pathname === '/') {
-      // Return the HTML form for GET requests
       return new Response(generateHtml('', '', '', '', url.origin), {
         headers: { 'Content-Type': 'text/html' }
       });
-    } else if (url.pathname.startsWith('/singbox') || url.pathname.startsWith('/clash') || url.pathname.startsWith('/surge')) {
+    } 
+    // 新增：ACL4SSR 外部转换路由
+    else if (url.pathname === '/acl4ssr') {
+      return await handleACL4SSRConversion(url);
+    }
+    else if (url.pathname.startsWith('/singbox') || url.pathname.startsWith('/clash') || url.pathname.startsWith('/surge')) {
       const inputString = url.searchParams.get('config');
       let selectedRules = url.searchParams.get('selectedRules');
       let customRules = url.searchParams.get('customRules');
-      // 获取语言参数，如果为空则使用默认值
       let lang = url.searchParams.get('lang') || 'zh-CN';
-      // Get custom UserAgent
       let userAgent = url.searchParams.get('ua');
       if (!userAgent) {
         userAgent = 'curl/7.74.0';
@@ -48,7 +51,6 @@ async function handleRequest(request) {
         }
       }
 
-      // Deal with custom rules
       try {
         customRules = JSON.parse(decodeURIComponent(customRules));
       } catch (error) {
@@ -56,7 +58,6 @@ async function handleRequest(request) {
         customRules = [];
       }
 
-      // Modify the existing conversion logic
       const configId = url.searchParams.get('configId');
       let baseConfig;
       if (configId) {
@@ -78,7 +79,6 @@ async function handleRequest(request) {
 
       const config = await configBuilder.build();
 
-      // 设置正确的 Content-Type 和其他响应头
       const headers = {
         'content-type': url.pathname.startsWith('/singbox')
           ? 'application/json; charset=utf-8'
@@ -87,7 +87,6 @@ async function handleRequest(request) {
             : 'text/plain; charset=utf-8'
       };
 
-      // 如果是 Surge 配置，添加 subscription-userinfo 头
       if (url.pathname.startsWith('/surge')) {
         headers['subscription-userinfo'] = 'upload=0; download=0; total=10737418240; expire=2546249531';
       }
@@ -119,7 +118,6 @@ async function handleRequest(request) {
         return new Response('Missing URL parameter', { status: 400 });
       }
 
-      // Create a URL object to correctly parse the original URL
       const parsedUrl = new URL(originalUrl);
       const queryString = parsedUrl.search;
 
@@ -154,12 +152,10 @@ async function handleRequest(request) {
 
       return Response.redirect(originalUrl, 302);
     } else if (url.pathname.startsWith('/xray')) {
-      // Handle Xray config requests
       const inputString = url.searchParams.get('config');
       const proxylist = inputString.split('\n');
 
       const finalProxyList = [];
-      // Use custom UserAgent (for Xray) Hmmm...
       let userAgent = url.searchParams.get('ua');
       if (!userAgent) {
         userAgent = 'curl/7.74.0';
@@ -178,7 +174,6 @@ async function handleRequest(request) {
             const text = await response.text();
             let decodedText;
             decodedText = decodeBase64(text.trim());
-            // Check if the decoded text needs URL decoding
             if (decodedText.includes('%')) {
               decodedText = decodeURIComponent(decodedText);
             }
@@ -209,7 +204,6 @@ async function handleRequest(request) {
       try {
         let configString;
         if (type === 'clash') {
-          // 如果是 YAML 格式，先转换为 JSON
           if (typeof content === 'string' && (content.trim().startsWith('-') || content.includes(':'))) {
             const yamlConfig = yaml.load(content);
             configString = JSON.stringify(yamlConfig);
@@ -219,17 +213,15 @@ async function handleRequest(request) {
               : content;
           }
         } else {
-          // singbox 配置处理
           configString = typeof content === 'object'
             ? JSON.stringify(content)
             : content;
         }
 
-        // 验证 JSON 格式
         JSON.parse(configString);
 
         await SUBLINK_KV.put(configId, configString, {
-          expirationTtl: 60 * 60 * 24 * 30  // 30 days
+          expirationTtl: 60 * 60 * 24 * 30
         });
 
         return new Response(configId, {
@@ -256,7 +248,7 @@ async function handleRequest(request) {
           return new Response(t('invalidShortUrl'), { status: 400 });
         }
 
-        const prefix = pathParts[1]; // b, c, x, s
+        const prefix = pathParts[1];
         const shortCode = pathParts[2];
 
         if (!['b', 'c', 'x', 's'].includes(prefix)) {
@@ -291,5 +283,74 @@ async function handleRequest(request) {
   } catch (error) {
     console.error('Error processing request:', error);
     return new Response(t('internalError'), { status: 500 });
+  }
+}
+
+// 新增：ACL4SSR 转换处理函数
+async function handleACL4SSRConversion(url) {
+  try {
+    const target = url.searchParams.get('target') || 'clash';
+    const subscriptionUrl = url.searchParams.get('url');
+    const configType = url.searchParams.get('config') || 'acl4ssr_online_full_google';
+    const backend = url.searchParams.get('backend') || 'https://api.v1.mk';
+    
+    // 额外参数
+    const emoji = url.searchParams.get('emoji') !== 'false';
+    const list = url.searchParams.get('list') === 'true';
+    const tfo = url.searchParams.get('tfo') === 'true';
+    const scv = url.searchParams.get('scv') !== 'false';
+    const fdn = url.searchParams.get('fdn') === 'true';
+    const sort = url.searchParams.get('sort') === 'true';
+    
+    if (!subscriptionUrl) {
+      return new Response('缺少订阅链接参数 url', { status: 400 });
+    }
+
+    // 获取 ACL4SSR 规则 URL
+    let ruleUrl;
+    if (configType.startsWith('http://') || configType.startsWith('https://')) {
+      ruleUrl = configType;
+    } else if (ACL4SSR_RULES[configType]) {
+      ruleUrl = ACL4SSR_RULES[configType];
+    } else {
+      ruleUrl = ACL4SSR_RULES['acl4ssr_online_full_google'];
+    }
+    
+    // 构建转换请求 URL
+    const convertUrl = new URL(`${backend}/sub`);
+    convertUrl.searchParams.set('target', target);
+    convertUrl.searchParams.set('url', subscriptionUrl);
+    convertUrl.searchParams.set('config', ruleUrl);
+    convertUrl.searchParams.set('emoji', emoji);
+    convertUrl.searchParams.set('list', list);
+    convertUrl.searchParams.set('tfo', tfo);
+    convertUrl.searchParams.set('scv', scv);
+    convertUrl.searchParams.set('fdn', fdn);
+    convertUrl.searchParams.set('sort', sort);
+    
+    // 请求转换
+    const response = await fetch(convertUrl.toString());
+    
+    if (!response.ok) {
+      throw new Error(`转换失败: ${response.status} ${response.statusText}`);
+    }
+
+    const content = await response.text();
+    
+    const contentType = target === 'clash' ? 'text/yaml; charset=utf-8' 
+                      : target === 'surge' ? 'text/plain; charset=utf-8'
+                      : 'application/json; charset=utf-8';
+    
+    return new Response(content, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="config.${target === 'clash' ? 'yaml' : 'conf'}"`,
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+
+  } catch (error) {
+    return new Response(`ACL4SSR转换出错: ${error.message}`, { status: 500 });
   }
 }
