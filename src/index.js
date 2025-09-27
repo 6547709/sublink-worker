@@ -1,4 +1,4 @@
-// 简单的订阅转换 Worker - 支持自定义 ACL4SSR 规则
+// 订阅转换 Worker - 支持自定义订阅和规则 URL
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
@@ -12,9 +12,9 @@ async function handleRequest(request) {
     return await handleSubscription(url);
   }
   
-  // 首页显示使用说明
+  // 首页显示配置界面
   if (url.pathname === '/') {
-    return new Response(getUsageHTML(), {
+    return new Response(getConfigHTML(), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
   }
@@ -24,7 +24,6 @@ async function handleRequest(request) {
 
 async function handleSubscription(url) {
   try {
-    // 获取参数
     const target = url.searchParams.get('target') || 'clash';
     const subscriptionUrl = url.searchParams.get('url');
     const configUrl = url.searchParams.get('config');
@@ -50,7 +49,6 @@ async function handleSubscription(url) {
     convertUrl.searchParams.set('fdn', 'false');
     convertUrl.searchParams.set('sort', 'false');
     
-    // 请求转换
     const response = await fetch(convertUrl.toString());
     
     if (!response.ok) {
@@ -59,7 +57,6 @@ async function handleSubscription(url) {
     
     const content = await response.text();
     
-    // 返回结果
     return new Response(content, {
       headers: {
         'Content-Type': target === 'clash' ? 'text/yaml; charset=utf-8' : 'text/plain; charset=utf-8',
@@ -73,122 +70,305 @@ async function handleSubscription(url) {
   }
 }
 
-function getUsageHTML() {
+function getConfigHTML() {
   return `
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>订阅转换 - ACL4SSR 规则</title>
+    <title>订阅转换 - 自定义配置</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 900px;
-            margin: 50px auto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
-            line-height: 1.6;
-            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
         }
-        h1 { color: #333; margin-bottom: 10px; }
-        h2 { color: #555; margin-top: 30px; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        code {
-            background: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            color: #c7254e;
-        }
-        .example {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 15px 0;
-            border-left: 4px solid #007bff;
-            overflow-x: auto;
-        }
-        .example code {
-            background: transparent;
+        h1 {
             color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .preset-rules {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .preset-rules h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        .preset-item {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            font-size: 13px;
+        }
+        .preset-item:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+        .preset-item.active {
+            background: #667eea;
+            color: white;
+        }
+        .preset-name {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .preset-url {
+            font-size: 11px;
+            opacity: 0.7;
             word-break: break-all;
         }
-        .note {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 4px;
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
         }
-        ul { padding-left: 25px; }
-        li { margin: 8px 0; }
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-convert {
+            background: #10b981;
+            color: white;
+        }
+        .btn-convert:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+        }
+        .btn-shorten {
+            background: #8b5cf6;
+            color: white;
+        }
+        .btn-shorten:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+        }
+        .result {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f0fdf4;
+            border: 2px solid #10b981;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.show { display: block; }
+        .result-url {
+            word-break: break-all;
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .copy-btn {
+            margin-top: 12px;
+            padding: 8px 16px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .copy-btn:hover {
+            background: #059669;
+        }
+        @media (max-width: 768px) {
+            .row { grid-template-columns: 1fr; }
+            .button-group { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🚀 订阅转换服务</h1>
-        <p>支持自定义 ACL4SSR 规则的订阅转换</p>
+        <p class="subtitle">支持自定义订阅链接和 ACL4SSR 规则</p>
         
-        <h2>📖 使用方法</h2>
-        <p>访问 <code>/sub</code> 路径，并传入以下参数：</p>
-        
-        <h3>必需参数：</h3>
-        <ul>
-            <li><code>url</code> - 你的订阅链接（需要 URL 编码）</li>
-            <li><code>config</code> - ACL4SSR 规则文件的 URL（需要 URL 编码）</li>
-        </ul>
-        
-        <h3>可选参数：</h3>
-        <ul>
-            <li><code>target</code> - 目标格式：clash, surge, singbox（默认：clash）</li>
-            <li><code>backend</code> - 转换后端 API（默认：https://api.v1.mk）</li>
-        </ul>
-
-        <h2>💡 使用示例</h2>
-        
-        <div class="example">
-            <strong>基本用法：</strong><br>
-            <code>https://your-worker.workers.dev/sub?target=clash&url=你的订阅链接&config=https://规则文件URL</code>
+        <div class="form-group">
+            <label>订阅链接 *</label>
+            <textarea id="subscriptionUrl" placeholder="多个订阅链接或节点请每行一条，支持手动使用 | 分割多链接或节点"></textarea>
         </div>
 
-        <div class="example">
-            <strong>完整示例（使用 ACL4SSR_Online_Full_Google_XQ）：</strong><br>
-            <code>https://your-worker.workers.dev/sub?target=clash&url=https%3A%2F%2Fsub.ssr.sh%2Flink%2FGjgUUvREWgSPsXRX%3Fclash%3D2&config=https%3A%2F%2Fraw.githubusercontent.com%2F6547709%2FACL4SSR%2Fmaster%2FClash%2Fconfig%2FACL4SSR_Online_Full_Google_XQ.ini</code>
+        <div class="preset-rules">
+            <h3>📋 预设规则（点击选择）</h3>
+            <div class="preset-item" data-url="https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_XQ.ini">
+                <span class="preset-name">ACL4SSR Google-XQ</span>
+                <span class="preset-url">完整 Google 规则（推荐）</span>
+            </div>
+            <div class="preset-item" data-url="https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini">
+                <span class="preset-name">ACL4SSR 完整规则</span>
+                <span class="preset-url">标准完整规则</span>
+            </div>
+            <div class="preset-item" data-url="https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini">
+                <span class="preset-name">ACL4SSR 标准规则</span>
+                <span class="preset-url">标准在线规则</span>
+            </div>
+            <div class="preset-item" data-url="https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini">
+                <span class="preset-name">ACL4SSR 精简规则</span>
+                <span class="preset-url">精简版规则</span>
+            </div>
         </div>
 
-        <h2>📋 常用 ACL4SSR 规则</h2>
-        <div class="example">
-            <strong>标准完整规则：</strong><br>
-            <code>https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini</code>
-        </div>
-        
-        <div class="example">
-            <strong>完整 Google 规则：</strong><br>
-            <code>https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_XQ.ini</code>
-        </div>
-        
-        <div class="example">
-            <strong>精简规则：</strong><br>
-            <code>https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini</code>
+        <div class="form-group">
+            <label>自定义规则地址（可选）</label>
+            <input type="text" id="customRuleUrl" placeholder="留空则使用上面选中的预设规则">
         </div>
 
-        <div class="note">
-            <strong>⚠️ 注意事项：</strong>
-            <ul style="margin: 10px 0 0 0;">
-                <li>订阅链接和规则 URL 都需要进行 URL 编码</li>
-                <li>可以使用任何在线的 .ini 规则文件</li>
-                <li>支持 Clash、Surge、Singbox 等多种格式</li>
-            </ul>
+        <div class="row">
+            <div class="form-group">
+                <label>客户端</label>
+                <select id="target">
+                    <option value="clash">Clash</option>
+                    <option value="surge">Surge</option>
+                    <option value="singbox">Singbox</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>后端服务</label>
+                <input type="text" id="backend" value="https://api.v1.mk">
+            </div>
         </div>
 
-        <h2>🔗 URL 编码工具</h2>
-        <p>在浏览器控制台使用：<code>encodeURIComponent('你的URL')</code></p>
+        <div class="button-group">
+            <button class="btn-convert" onclick="convert()">转换</button>
+            <button class="btn-shorten" onclick="generateShortLink()">生成短链</button>
+        </div>
+
+        <div class="result" id="result">
+            <strong>✅ 转换链接：</strong>
+            <div class="result-url" id="resultUrl"></div>
+            <button class="copy-btn" onclick="copyResult()">📋 复制链接</button>
+        </div>
     </div>
+
+    <script>
+        let selectedRuleUrl = 'https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_XQ.ini';
+
+        // 预设规则选择
+        document.querySelectorAll('.preset-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.preset-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                selectedRuleUrl = this.dataset.url;
+                document.getElementById('customRuleUrl').value = '';
+            });
+        });
+
+        // 默认选中第一个
+        document.querySelector('.preset-item').classList.add('active');
+
+        function convert() {
+            const subscriptionUrl = document.getElementById('subscriptionUrl').value.trim();
+            const customRuleUrl = document.getElementById('customRuleUrl').value.trim();
+            const target = document.getElementById('target').value;
+            const backend = document.getElementById('backend').value.trim();
+
+            if (!subscriptionUrl) {
+                alert('请输入订阅链接');
+                return;
+            }
+
+            const ruleUrl = customRuleUrl || selectedRuleUrl;
+            
+            const url = new URL(window.location.origin + '/sub');
+            url.searchParams.set('target', target);
+            url.searchParams.set('url', subscriptionUrl);
+            url.searchParams.set('config', ruleUrl);
+            if (backend && backend !== 'https://api.v1.mk') {
+                url.searchParams.set('backend', backend);
+            }
+
+            const resultUrl = url.toString();
+            document.getElementById('resultUrl').textContent = resultUrl;
+            document.getElementById('result').classList.add('show');
+
+            // 自动打开链接
+            window.open(resultUrl, '_blank');
+        }
+
+        function generateShortLink() {
+            alert('短链功能需要额外配置 KV 存储，暂未实现');
+        }
+
+        function copyResult() {
+            const resultUrl = document.getElementById('resultUrl').textContent;
+            navigator.clipboard.writeText(resultUrl).then(() => {
+                alert('✅ 链接已复制到剪贴板');
+            }).catch(() => {
+                alert('❌ 复制失败，请手动复制');
+            });
+        }
+    </script>
 </body>
 </html>
   `;
