@@ -46,7 +46,7 @@ async function handleSubscription(url) {
     convertUrl.searchParams.set('list', 'false');
     convertUrl.searchParams.set('tfo', 'false');
     convertUrl.searchParams.set('scv', 'true');
-    convertUrl.searchParams.set('fdn', 'false');
+    convertUrl.searchParams.set('fdn', 'true');
     convertUrl.searchParams.set('sort', 'false');
     
     const response = await fetch(convertUrl.toString());
