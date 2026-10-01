@@ -265,6 +265,10 @@ function getConfigHTML() {
                 <span class="preset-name">ACL4SSR Google-XQ</span>
                 <span class="preset-url">完整 Google 规则（推荐）</span>
             </div>
+            <div class="preset-item" data-url="https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_VPS.ini">
+                <span class="preset-name">ACL4SSR Google-VPS</span>
+                <span class="preset-url">完整 Google 规则（VPS 版）</span>
+            </div>
             <div class="preset-item" data-url="https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini">
                 <span class="preset-name">ACL4SSR 完整规则</span>
                 <span class="preset-url">标准完整规则</span>

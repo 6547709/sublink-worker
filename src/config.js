@@ -5,6 +5,7 @@ export const ACL4SSR_RULES = {
 	'acl4ssr_online': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini',
 	'acl4ssr_online_full': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini',
 	'acl4ssr_online_full_google': 'https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_XQ.ini',
+	'acl4ssr_online_full_google_vps': 'https://raw.githubusercontent.com/6547709/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_Google_VPS.ini',
 	'acl4ssr_online_mini': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini',
 	'acl4ssr_online_nodirect': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini',
 	'acl4ssr_online_adblock': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini',
@@ -140,6 +141,7 @@ export const PREDEFINED_RULE_SETS = {
 	acl4ssr_online: 'acl4ssr_online',
 	acl4ssr_online_full: 'acl4ssr_online_full',
 	acl4ssr_online_full_google: 'acl4ssr_online_full_google',
+	acl4ssr_online_full_google_vps: 'acl4ssr_online_full_google_vps',
 	acl4ssr_online_mini: 'acl4ssr_online_mini',
 };
 
