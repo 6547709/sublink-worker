@@ -4,7 +4,7 @@
 import yaml from 'js-yaml';
 import { ProxyParser } from './ProxyParsers.js';
 import { PREDEFINED_RULE_SETS, UNIFIED_RULES } from './config.js';
-import { fetchAndParseIni, buildClashConfigFromIni } from './IniParser.js';
+import { fetchAndParseIni, buildClashConfigFromIni, expandRulesets } from './IniParser.js';
 import { parseClashYaml } from './ClashYamlParser.js';
 
 addEventListener('fetch', event => {
@@ -43,6 +43,9 @@ async function handleSubscription(url) {
     const configUrl = url.searchParams.get('config');
     const lang = url.searchParams.get('lang') || 'zh-CN';
     const userAgent = url.searchParams.get('userAgent') || 'clash.meta';
+    // inline 模式：把 ruleset URL 全部下载并展开为单条规则（不依赖 Clash 远程下载）
+    // 默认 true：用户偏好"之前的样子"，每条规则直接列出
+    const inline = (url.searchParams.get('inline') || 'true').toLowerCase() !== 'false';
 
     if (!subscriptionUrl) {
       return new Response('错误：缺少 url 参数', { status: 400 });
@@ -97,7 +100,11 @@ async function handleSubscription(url) {
       configObject = buildClashConfigFromPreset(proxies, configUrl);
     } else {
       // ini URL 模式：本地解析 ACL4SSR ini
-      const ini = await fetchAndParseIni(configUrl, userAgent);
+      let ini = await fetchAndParseIni(configUrl, userAgent);
+      if (inline) {
+        // 展开所有 ruleset 为 inline 规则（用户偏好：每条规则直接列出）
+        ini = await expandRulesets(ini, userAgent);
+      }
       configObject = buildClashConfigFromIni(proxies, ini);
     }
 
@@ -410,6 +417,14 @@ function getConfigHTML() {
         </div>
 
         <div class="form-group">
+            <label>规则模式</label>
+            <select id="inlineMode">
+                <option value="true">展开规则（每条规则直接列出，与 subconverter 一致，推荐）</option>
+                <option value="false">使用 rule-provider（远程下载，配置文件小但需要 Clash 联网）</option>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label>订阅链接 *</label>
             <textarea id="subscriptionUrl" placeholder="多个订阅链接或节点请每行一条，支持手动使用 | 分割多链接或节点"></textarea>
         </div>
@@ -470,6 +485,7 @@ function getConfigHTML() {
             url.searchParams.set('target', 'clash');
             url.searchParams.set('url', subscriptionUrl);
             url.searchParams.set('config', config);
+            url.searchParams.set('inline', document.getElementById('inlineMode').value);
 
             const resultUrl = url.toString();
             document.getElementById('resultUrl').textContent = resultUrl;

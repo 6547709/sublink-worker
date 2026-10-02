@@ -16,6 +16,80 @@ export async function fetchAndParseIni(url, userAgent = 'clash.meta') {
 }
 
 /**
+ * 把 ini 里的 RULE-SET 项并行下载并展开为 inline 规则
+ *
+ * 返回新的 ini 结构，ruleProviders 已清空，rules 是展开后的单条规则
+ * .list 文件格式：每行一条规则（DOMAIN-SUFFIX,xxx 或纯域名/CIDR）
+ *   含逗号 → 当作完整 Clash 规则（TYPE,VALUE）拆分
+ *   无逗号 → 默认当 DOMAIN-SUFFIX（兼容绝大多数 list 文件；CIDR 也照样能匹配）
+ */
+export async function expandRulesets(ini, userAgent = 'clash.meta') {
+  // 收集需要展开的 RULE-SET 项 + 保留已 inline 的规则
+  const items = [];
+  const inlineRules = [];
+  for (const rule of ini.rules) {
+    if (rule.startsWith('RULE-SET,')) {
+      const parts = rule.split(',');
+      const providerName = parts[1];
+      const groupName = parts[2];
+      const provider = ini.ruleProviders.find(p => p.name === providerName);
+      if (provider) items.push({ provider, groupName });
+    } else {
+      inlineRules.push(rule);
+    }
+  }
+
+  // 并行下载所有 ruleset URL（Cloudflare Workers 免费版允许 50 subrequests）
+  const results = await Promise.all(
+    items.map(async ({ provider, groupName }) => {
+      try {
+        const resp = await fetch(provider.url, {
+          headers: { 'User-Agent': userAgent }
+        });
+        if (!resp.ok) return [];
+        const text = await resp.text();
+        return expandListContent(text, groupName);
+      } catch (e) {
+        // 单个 ruleset 失败不影响其他
+        return [];
+      }
+    })
+  );
+
+  return {
+    rules: [...inlineRules, ...results.flat()],
+    proxyGroups: ini.proxyGroups,
+    ruleProviders: []  // inline 模式不需要 rule-provider
+  };
+}
+
+/**
+ * 解析 .list 文件内容为单条规则数组
+ */
+function expandListContent(text, groupName) {
+  const rules = [];
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith('#') || line.startsWith(';') || line.startsWith('//')) continue;
+
+    let type, value;
+    const commaIdx = line.indexOf(',');
+    if (commaIdx > 0) {
+      type = line.slice(0, commaIdx);
+      value = line.slice(commaIdx + 1);
+    } else {
+      // 无逗号：默认当 DOMAIN-SUFFIX（ACL4SSR 大多数 .list 都是这种格式）
+      type = 'DOMAIN-SUFFIX';
+      value = line;
+    }
+    if (!type || !value) continue;
+    rules.push(`${type},${value},${groupName}`);
+  }
+  return rules;
+}
+
+/**
  * 解析 ACL4SSR ini 文本
  *
  * 返回结构：
