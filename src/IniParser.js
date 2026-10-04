@@ -65,6 +65,10 @@ export async function expandRulesets(ini, userAgent = 'clash.meta') {
 
 /**
  * 解析 .list 文件内容为单条规则数组
+ * 文件行格式：TYPE,VALUE[,FLAG1,FLAG2...]
+ * 例：IP-CIDR,0.0.0.0/8,no-resolve
+ * 输出：IP-CIDR,0.0.0.0/8,GROUPNAME,no-resolve
+ * （FLAG 必须放在 groupName 之后，否则 Clash meta 会把 flag 当成 proxy group）
  */
 function expandListContent(text, groupName) {
   const rules = [];
@@ -74,17 +78,28 @@ function expandListContent(text, groupName) {
     if (line.startsWith('#') || line.startsWith(';') || line.startsWith('//')) continue;
 
     let type, value;
-    const commaIdx = line.indexOf(',');
-    if (commaIdx > 0) {
-      type = line.slice(0, commaIdx);
-      value = line.slice(commaIdx + 1);
+    let flags = [];
+    if (line.includes(',')) {
+      const parts = line.split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) continue;
+      type = parts[0];
+      if (parts.length === 1) {
+        value = '';
+      } else {
+        value = parts[1];
+        // 剩余部分当作 flag（no-resolve 等）
+        flags = parts.slice(2);
+      }
     } else {
       // 无逗号：默认当 DOMAIN-SUFFIX（ACL4SSR 大多数 .list 都是这种格式）
       type = 'DOMAIN-SUFFIX';
       value = line;
     }
-    if (!type || !value) continue;
-    rules.push(`${type},${value},${groupName}`);
+    if (!type) continue;
+    // value 可以为空（如 IP-CIDR6,::1/128 —— 但这种 case 已包含在含逗号的分支）
+    if (!value && !flags.length) continue;
+    const flagPart = flags.length > 0 ? ',' + flags.join(',') : '';
+    rules.push(`${type},${value},${groupName}${flagPart}`);
   }
   return rules;
 }
