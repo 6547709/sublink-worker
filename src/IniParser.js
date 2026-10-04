@@ -64,11 +64,35 @@ export async function expandRulesets(ini, userAgent = 'clash.meta') {
 }
 
 /**
+ * Clash meta 支持的规则类型白名单（参考 subconverter 行为）
+ * 不在白名单的类型（如 URL-REGEX）直接跳过 —— 与 subconverter 行为一致
+ */
+const SUPPORTED_RULE_TYPES = new Set([
+  'DOMAIN',
+  'DOMAIN-SUFFIX',
+  'DOMAIN-KEYWORD',
+  'DOMAIN-REGEX',
+  'GEOIP',
+  'IP-CIDR',
+  'IP-CIDR6',
+  'SRC-IP-CIDR',
+  'SRC-PORT',
+  'PROCESS-NAME',
+  'USER-AGENT'
+]);
+
+/**
  * 解析 .list 文件内容为单条规则数组
  * 文件行格式：TYPE,VALUE[,FLAG1,FLAG2...]
  * 例：IP-CIDR,0.0.0.0/8,no-resolve
  * 输出：IP-CIDR,0.0.0.0/8,GROUPNAME,no-resolve
- * （FLAG 必须放在 groupName 之后，否则 Clash meta 会把 flag 当成 proxy group）
+ *
+ * 关键规则（参考 subconverter 行为）：
+ * 1. 必须有 type + value 两部分（逗号分隔）
+ * 2. type 必须在 SUPPORTED_RULE_TYPES 白名单内，否则跳过
+ *    （不再兜底为 DOMAIN-SUFFIX —— 这是导致 URL-REGEX 错误展开的根因）
+ * 3. 剩余字段（no-resolve 等）作为 flag 必须放在 groupName 之后
+ *    否则 Clash meta 会把 flag 当成 proxy group
  */
 function expandListContent(text, groupName) {
   const rules = [];
@@ -77,27 +101,13 @@ function expandListContent(text, groupName) {
     if (!line) continue;
     if (line.startsWith('#') || line.startsWith(';') || line.startsWith('//')) continue;
 
-    let type, value;
-    let flags = [];
-    if (line.includes(',')) {
-      const parts = line.split(',').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 0) continue;
-      type = parts[0];
-      if (parts.length === 1) {
-        value = '';
-      } else {
-        value = parts[1];
-        // 剩余部分当作 flag（no-resolve 等）
-        flags = parts.slice(2);
-      }
-    } else {
-      // 无逗号：默认当 DOMAIN-SUFFIX（ACL4SSR 大多数 .list 都是这种格式）
-      type = 'DOMAIN-SUFFIX';
-      value = line;
-    }
-    if (!type) continue;
-    // value 可以为空（如 IP-CIDR6,::1/128 —— 但这种 case 已包含在含逗号的分支）
-    if (!value && !flags.length) continue;
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 2) continue;  // 至少需要 type,value
+    const type = parts[0];
+    const value = parts[1];
+    if (!SUPPORTED_RULE_TYPES.has(type)) continue;  // 跳过未知类型（如 URL-REGEX）
+
+    const flags = parts.slice(2);
     const flagPart = flags.length > 0 ? ',' + flags.join(',') : '';
     rules.push(`${type},${value},${groupName}${flagPart}`);
   }
