@@ -152,3 +152,101 @@ function buildTransport(cp) {
   }
   return transport;
 }
+
+/**
+ * 把内部 proxy 对象转回 Clash YAML 格式
+ * （内部格式是 Sing-box 风格的：tls 是 dict，transport 是嵌套对象）
+ * （Clash 格式要求：tls 是 bool，ws-opts/grpc-opts/reality-opts 是顶层字段）
+ */
+export function internalProxyToClash(p) {
+  if (!p || !p.type) return null;
+  const out = {
+    name: p.tag,
+    type: p.type === 'shadowsocks' ? 'ss' : p.type,
+    server: p.server,
+    port: p.server_port
+  };
+
+  switch (p.type) {
+    case 'shadowsocks':
+    case 'ss':
+      out.cipher = p.method;
+      out.password = p.password;
+      break;
+
+    case 'vmess':
+      out.uuid = p.uuid;
+      out.alterId = p.alter_id || 0;
+      out.cipher = p.security || 'auto';
+      out.udp = true;
+      attachTransport(out, p.transport);
+      break;
+
+    case 'vless':
+      out.uuid = p.uuid;
+      if (p.flow) out.flow = p.flow;
+      out.udp = true;
+      attachTransport(out, p.transport);
+      break;
+
+    case 'trojan':
+      out.password = p.password;
+      if (p.flow) out.flow = p.flow;
+      out.udp = true;
+      attachTransport(out, p.transport);
+      break;
+
+    case 'hysteria2':
+      out.password = p.password;
+      if (p.obfs?.type) {
+        out.obfs = p.obfs.type;
+        out['obfs-password'] = p.obfs.password;
+      }
+      if (p.auth) out.auth = p.auth;
+      if (p.recv_window_conn !== undefined) out['recv-window-conn'] = p.recv_window_conn;
+      if (p.up_mbps !== undefined) out.up = p.up_mbps;
+      if (p.down_mbps !== undefined) out.down = p.down_mbps;
+      break;
+
+    case 'tuic':
+      out.uuid = p.uuid;
+      out.password = p.password;
+      if (p.congestion_control) out['congestion-controller'] = p.congestion_control;
+      if (p.flow) out.flow = p.flow;
+      out.udp = true;
+      break;
+  }
+
+  // TLS 块（Clash 顶层字段）
+  if (p.tls?.enabled) {
+    out.tls = true;
+    if (p.tls.server_name) out.servername = p.tls.server_name;
+    if (p.tls.insecure) out['skip-cert-verify'] = p.tls.insecure;
+    if (p.tls.utls?.fingerprint) out['client-fingerprint'] = p.tls.utls.fingerprint;
+    if (Array.isArray(p.tls.alpn) && p.tls.alpn.length > 0) out.alpn = p.tls.alpn;
+    if (p.tls.reality) {
+      out['reality-opts'] = {
+        'public-key': p.tls.reality.public_key,
+        'short-id': p.tls.reality.short_id
+      };
+    }
+  }
+
+  return out;
+}
+
+function attachTransport(out, transport) {
+  if (!transport || transport.type === 'tcp' || transport.type === 'tcp,udp') return;
+  if (transport.type === 'ws') {
+    out.network = 'ws';
+    out['ws-opts'] = {
+      path: transport.path || '/',
+      headers: transport.headers || {}
+    };
+  } else if (transport.type === 'grpc') {
+    out.network = 'grpc';
+    out['grpc-opts'] = {
+      'grpc-service-name': transport.service_name || ''
+    };
+  }
+}

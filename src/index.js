@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
 import { ProxyParser } from './ProxyParsers.js';
 import { PREDEFINED_RULE_SETS, UNIFIED_RULES } from './config.js';
 import { fetchAndParseIni, buildClashConfigFromIni, expandRulesets } from './IniParser.js';
-import { parseClashYaml } from './ClashYamlParser.js';
+import { parseClashYaml, internalProxyToClash } from './ClashYamlParser.js';
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
@@ -106,6 +106,13 @@ async function handleSubscription(url) {
         ini = await expandRulesets(ini, userAgent);
       }
       configObject = buildClashConfigFromIni(proxies, ini);
+    }
+
+    // 5. 转换为目标格式（Clash YAML）
+    if (target === 'clash') {
+      configObject.proxies = (configObject.proxies || [])
+        .map(internalProxyToClash)
+        .filter(Boolean);
     }
 
     // 4. 序列化为 YAML
