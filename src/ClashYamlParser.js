@@ -167,6 +167,10 @@ export function internalProxyToClash(p) {
     port: p.server_port
   };
 
+  // 通用基础字段
+  out.tfo = !!p.tcp_fast_open;
+  out['skip-cert-verify'] = !!(p.tls?.insecure);
+
   switch (p.type) {
     case 'shadowsocks':
     case 'ss':
@@ -178,21 +182,21 @@ export function internalProxyToClash(p) {
       out.uuid = p.uuid;
       out.alterId = p.alter_id || 0;
       out.cipher = p.security || 'auto';
-      out.udp = true;
+      out.network = p.transport?.type || 'tcp';
       attachTransport(out, p.transport);
       break;
 
     case 'vless':
       out.uuid = p.uuid;
+      out.network = p.transport?.type || 'tcp';
       if (p.flow) out.flow = p.flow;
-      out.udp = true;
       attachTransport(out, p.transport);
       break;
 
     case 'trojan':
       out.password = p.password;
+      out.network = p.transport?.type || 'tcp';
       if (p.flow) out.flow = p.flow;
-      out.udp = true;
       attachTransport(out, p.transport);
       break;
 
@@ -213,7 +217,6 @@ export function internalProxyToClash(p) {
       out.password = p.password;
       if (p.congestion_control) out['congestion-controller'] = p.congestion_control;
       if (p.flow) out.flow = p.flow;
-      out.udp = true;
       break;
   }
 
@@ -221,7 +224,6 @@ export function internalProxyToClash(p) {
   if (p.tls?.enabled) {
     out.tls = true;
     if (p.tls.server_name) out.servername = p.tls.server_name;
-    if (p.tls.insecure) out['skip-cert-verify'] = p.tls.insecure;
     if (p.tls.utls?.fingerprint) out['client-fingerprint'] = p.tls.utls.fingerprint;
     if (Array.isArray(p.tls.alpn) && p.tls.alpn.length > 0) out.alpn = p.tls.alpn;
     if (p.tls.reality) {
